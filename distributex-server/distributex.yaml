@@ -1,0 +1,6 @@
+pools:
+    - name: test1
+      expire: 3600
+
+    - name: test2
+      expire: 3600

@@ -1,0 +1,41 @@
+#!/usr/bin/python
+#!/usr/bin/env python
+
+import urllib2
+import argparse
+import socket
+import os
+
+def parseArgs():
+    parser = argparse.ArgumentParser(description='Distributex client')
+    parser.add_argument('command', type=str, nargs='?',
+                       help='Command to execute when lock is obtained')
+
+    parser.add_argument('-H', dest='host', required=True, help='Server hostname')
+    parser.add_argument('-r', dest='pool', required=True, help='Resource pool')
+    parser.add_argument('-p', dest='port', default=9989, type=int,
+        help='Server port (default 9989)')
+
+    return parser.parse_args()
+
+if __name__ == "__main__": 
+    args = parseArgs()
+
+    host = socket.gethostbyaddr(socket.gethostname())[0]
+
+    # Build a reusable URI for the server
+    server_uri = "http://%s:%s/%%s/?pool=%s&host=%s" % (
+            args.host,
+            args.port,
+            args.pool,
+            host
+        )
+
+    lock = urllib2.urlopen(server_uri % 'wait').read()
+    
+    if lock == "YES":
+        os.system(args.command)
+        
+        urllib2.urlopen(server_uri % 'release').read()
+    else:
+        print "Error obtaining lock, server said", lock
