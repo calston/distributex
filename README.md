@@ -28,12 +28,18 @@ pools:
 
     - name: pool2
       expire: 300
+      servers: acme1, acme2
 ```
 
 This will create two pools whose lock expires after 5 minutes. It's generally
 a good idea to set an expiry to ensure something, otherwise it will default to
 30 minutes. If you don't want it to expire then set it to 0, but I don't 
 recommend that.
+
+A comma separated list of servers can also be provided to prevent accidental
+pool incursions. This isn't secure, nor are lock releases, since anyone can
+just forge their hostname. The distributex client will pass the FQDN of the
+host.
 
 You can test the service as follows
 
@@ -81,4 +87,4 @@ This is useful for blocking a cron job like Puppet.
 ```
 
 This will ensure that only one instance of Puppet in the cluster runs at any time.
-You might also want to pass -l to distributex to prevent local process overlap
+You might also want to pass -l to distributex to prevent local process overlap.

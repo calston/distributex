@@ -72,11 +72,15 @@ class SiteRoot(resource.Resource):
 
         self.backend = InMemoryDictBackend()
 
+        self.pools = {}
+
         for pool in self.config.get('pools', []):
             if 'servers' in pool:
                 servers = pool['servers'].replace(' ', '').split(',')
             else:
                 servers = []
+
+            self.pools[pool['name']] = servers
 
             self.backend.add_pool(
                 pool['name'], 
@@ -87,12 +91,14 @@ class SiteRoot(resource.Resource):
         print self.backend.resources
 
     def wait_finish(self, lock, request, timer):
-        timer.stop()
+        if timer.running:
+            timer.stop()
         request.write('YES')
         request.finish()
 
     def wait_bailout(self, error, request, timer):
-        timer.stop()
+        if timer.running:
+            timer.stop()
         request.write('NO')
         request.finish()
 
@@ -122,6 +128,14 @@ class SiteRoot(resource.Resource):
 
         host = cgi.escape(request.args["host"][0])
         pool = cgi.escape(request.args["pool"][0])
+
+        if pool in self.pools:
+            if self.pools[pool]:
+                # Server not allowed
+                if not(host in self.pools[pool]):
+                    return "NOT ALLOWED"
+        else:
+            return "INVALID"
 
         if call == 'wait':
             # Wait for a lock
