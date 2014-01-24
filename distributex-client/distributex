@@ -4,6 +4,8 @@ import urllib2
 import argparse
 import socket
 import os
+import signal
+import sys
 
 def parseArgs():
     parser = argparse.ArgumentParser(description='Distributex client')
@@ -14,6 +16,7 @@ def parseArgs():
     parser.add_argument('-r', dest='pool', required=True, help='Resource pool')
     parser.add_argument('-p', dest='port', default=9989, type=int,
         help='Server port (default 9989)')
+    parser.add_argument('-l', dest='lock', default=False, action="store_true", help='Use local locking as well')
 
     return parser.parse_args()
 
@@ -21,6 +24,8 @@ if __name__ == "__main__":
     args = parseArgs()
 
     host = socket.gethostbyaddr(socket.gethostname())[0]
+
+    lockfile = '/tmp/dx-%s.lock' % args.pool
 
     # Build a reusable URI for the server
     server_uri = "http://%s:%s/%%s/?pool=%s&host=%s" % (
@@ -30,11 +35,63 @@ if __name__ == "__main__":
             host
         )
 
-    lock = urllib2.urlopen(server_uri % 'wait').read()
-    
-    if lock == "YES":
-        os.system(args.command)
-        
+    def cleanup():
+        if args.lock:
+            try:
+                os.unlink(lockfile)
+            except:
+                pass
+
+    def exitClean(signal, frame):
+        cleanup()
         urllib2.urlopen(server_uri % 'release').read()
-    else:
-        print "Error obtaining lock, server said", lock
+        sys.exit(1)
+
+    signal.signal(signal.SIGINT, exitClean)
+    signal.signal(signal.SIGTERM, exitClean)
+
+    # Look for a local lock
+    if args.lock:
+        if os.path.exists(lockfile):
+            try:
+                pid = int(open(lockfile).read())
+                os.kill(pid, 0)
+            except OSError:
+                print "Cleaning stale lockfile"
+                cleanup()
+            except Exception:
+                print "Broken lock file %s. Please remove it" % lockfile
+                sys.exit(1)
+            else:
+                print ("Another instance of distributex is running for this"
+                    "pool (pid %s). Wait for it to end or remove %s" % (
+                    pid, lockfile))
+
+                sys.exit(1)
+
+        f = open(lockfile, 'wt')
+        f.write(str(os.getpid()))
+        f.close()
+
+    try:
+        lock = urllib2.urlopen(server_uri % 'wait').read()
+        
+        if lock == "YES":
+            os.system(args.command)
+            
+            cleanup()
+            urllib2.urlopen(server_uri % 'release').read()
+        else:
+            print "Error obtaining lock, server said", lock
+            cleanup()
+            sys.exit(1)
+
+    except (KeyboardInterrupt, SystemExit):
+        print "Exiting"
+
+        cleanup()
+        urllib2.urlopen(server_uri % 'release').read()
+    except:
+        cleanup()
+        urllib2.urlopen(server_uri % 'release').read()
+        rollback()

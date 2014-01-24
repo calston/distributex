@@ -71,4 +71,14 @@ optional arguments:
   -H HOST     Server hostname
   -r POOL     Resource pool
   -p PORT     Server port (default 9989)
+  -l          Use local locking as well
 ```
+
+This is useful for blocking a cron job like Puppet.
+
+```
+*/5 * * * * /usr/bin/distributex -H distributex.acme.com -r pool1 '/usr/bin/puppet agent --onetime --no-daemonize'
+```
+
+This will ensure that only one instance of Puppet in the cluster runs at any time.
+You might also want to pass -l to distributex to prevent local process overlap
