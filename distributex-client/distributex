@@ -14,8 +14,8 @@ def parseArgs():
 
     parser.add_argument('-H', dest='host', required=True, help='Server hostname')
     parser.add_argument('-r', dest='pool', required=True, help='Resource pool')
-    parser.add_argument('-p', dest='port', default=9989, type=int,
-        help='Server port (default 9989)')
+    parser.add_argument('-p', dest='port', default=9889, type=int,
+        help='Server port (default 9889)')
     parser.add_argument('-l', dest='lock', default=False, action="store_true", help='Use local locking as well')
 
     return parser.parse_args()

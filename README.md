@@ -44,15 +44,15 @@ host.
 You can test the service as follows
 
 ```
-$ curl "http://localhost:9989/get/?host=me&pool=pool1"
+$ curl "http://localhost:9889/get/?host=me&pool=pool1"
 YES
-$ curl "http://localhost:9989/get/?host=them&pool=pool1"
+$ curl "http://localhost:9889/get/?host=them&pool=pool1"
 NO
-$ curl "http://localhost:9989/release/?host=me&pool=pool1"
+$ curl "http://localhost:9889/release/?host=me&pool=pool1"
 OK
-$ curl "http://localhost:9989/get/?host=them&pool=pool1"
+$ curl "http://localhost:9889/get/?host=them&pool=pool1"
 YES
-$ curl "http://localhost:9989/release/?host=them&pool=pool1"
+$ curl "http://localhost:9889/release/?host=them&pool=pool1"
 OK
 ```
 
@@ -76,7 +76,7 @@ optional arguments:
   -h, --help  show this help message and exit
   -H HOST     Server hostname
   -r POOL     Resource pool
-  -p PORT     Server port (default 9989)
+  -p PORT     Server port (default 9889)
   -l          Use local locking as well
 ```
 

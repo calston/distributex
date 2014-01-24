@@ -11,7 +11,7 @@ import distributex
 
 class Options(usage.Options):
     optParameters = [
-        ["port", "p", 9989, "The port to listen on."],
+        ["port", "p", 9889, "The port to listen on."],
         ["config", "c", "distributex.yaml", "Config file."]
     ]
 
