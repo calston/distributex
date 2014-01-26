@@ -5,7 +5,7 @@ from distributex.backends import in_memory_backend, memcached_backend
 
 class DictBackend(unittest.TestCase):
     def setUp(self):
-        self.backend = in_memory_backend.InMemoryDictBackend()
+        self.backend = in_memory_backend.InMemoryDictBackend({})
 
     def test_add_pool(self):
         self.backend.add_pool('test1', 3600)
