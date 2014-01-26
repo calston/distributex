@@ -9,8 +9,7 @@ setup(
     version="0.1",
     url='http://github.com/calston/distributex',
     license='MIT',
-    description="Distributex. A network mutex service for distributed"
-                "environments.",
+    description="A network mutex service for distributed environments.",
     long_description=open('README.md', 'r').read(),
     author='Colin Alston',
     author_email='colin.alston@gmail.com',
