@@ -6,7 +6,7 @@ def listify(filename):
 
 setup(
     name="distributex",
-    version="0.1",
+    version="0.2",
     url='http://github.com/calston/distributex',
     license='MIT',
     description="A network mutex service for distributed environments.",
