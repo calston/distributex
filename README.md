@@ -22,6 +22,7 @@ The configuration file is a simple YAML structure which defines lock pools. A
 lock pool is a resource you want to allow things to fight over.
 
 ```
+backend: memcache
 pools:
     - name: pool1
       expire: 300
@@ -30,6 +31,13 @@ pools:
       expire: 300
       servers: acme1, acme2
 ```
+
+You can specify either the 'memcache' backend or 'inmemory', there are pros
+and cons to both. Memcache will be slower, but state is retained away from 
+the Distributex server and you can scale out workers - however since the 
+inmemory backend can handle about 5000 waiting locks on a single machine 
+redundancy is the only real concern. Lock expiry is also a bit more reliable
+and simpler in the memcache backend.
 
 This will create two pools whose lock expires after 5 minutes. It's generally
 a good idea to set an expiry to ensure something, otherwise it will default to
