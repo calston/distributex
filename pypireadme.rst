@@ -31,6 +31,11 @@ lock pool is a resource you want to allow things to fight over.::
          expire: 300
          servers: acme1, acme2
 
+This will create two pools whose lock expires after 5 minutes. It's generally
+a good idea to set an expiry to ensure something, otherwise it will default to
+30 minutes. If you don't want it to expire then set it to 0, but I don't 
+recommend that.
+
 You can specify either the 'memcache' backend or 'inmemory', there are pros
 and cons to both. Memcache will be slower, but state is retained away from 
 the Distributex server and you can scale out workers - however since the 
@@ -38,15 +43,13 @@ inmemory backend can handle about 5000 waiting locks on a single machine
 redundancy is the only real concern. Lock expiry is also a bit more reliable
 and simpler in the memcache backend.
 
-This will create two pools whose lock expires after 5 minutes. It's generally
-a good idea to set an expiry to ensure something, otherwise it will default to
-30 minutes. If you don't want it to expire then set it to 0, but I don't 
-recommend that.
-
 A comma separated list of servers can also be provided to prevent accidental
 pool incursions. This isn't secure, nor are lock releases, since anyone can
 just forge their hostname. The distributex client will pass the FQDN of the
 host.
+
+It is also possible to set 'maxlocks' which allows the pool to behave like
+a semaphore.
 
 You can test the service as follows::
 

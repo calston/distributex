@@ -37,6 +37,28 @@ class DictBackend(unittest.TestCase):
 
         self.backend.release_lock('test1', 'host2')
 
+    def test_semaphore(self):
+        self.backend.add_pool('test1', 60, 3)
+
+        locks = []
+        for l in range(5):
+            locks.append(self.backend.get_lock('test1', 'host%s' % l))
+
+        for l in range(3):
+            self.assertTrue(locks[l])
+
+        self.assertFalse(locks[3])
+        self.assertFalse(locks[4])
+
+        self.backend.release_lock('test1', 'host0')
+        lock = self.backend.get_lock('test1', 'host3')
+
+        self.assertTrue(lock)
+
+        for l in range(5):
+            yield self.backend.release_lock('test1', 'host%s' % l)
+
+
 class MemcachedBackend(unittest.TestCase):
     def setUp(self):
         self.backend = memcached_backend.MemcachedBackend({})
@@ -45,13 +67,10 @@ class MemcachedBackend(unittest.TestCase):
     def tearDown(self):
         yield self.backend.disconnect()
 
-    @defer.inlineCallbacks
     def test_add_pool(self):
-        yield self.backend.add_pool('test1', 60)
+        self.backend.add_pool('test1', 60)
 
-        e = yield self.backend.get_key('test1', 'expire')
-
-        self.assertEquals(e[1], '60')
+        self.assertEquals(self.backend.pools['test1']['expire'], 60)
 
     @defer.inlineCallbacks
     def test_get_lock(self):
@@ -64,6 +83,29 @@ class MemcachedBackend(unittest.TestCase):
         self.assertFalse(lock2)
 
         yield self.backend.release_lock('test1', 'host1')
+
+    @defer.inlineCallbacks
+    def test_semaphore(self):
+        yield self.backend.add_pool('test1', 60, 3)
+
+        locks = []
+        for l in range(5):
+            lock = yield self.backend.get_lock('test1', 'host%s' % l)
+            locks.append(lock)
+
+        for l in range(3):
+            self.assertTrue(locks[l])
+
+        self.assertFalse(locks[3])
+        self.assertFalse(locks[4])
+
+        yield self.backend.release_lock('test1', 'host0')
+        lock = yield self.backend.get_lock('test1', 'host3')
+
+        self.assertTrue(lock)
+
+        for l in range(5):
+            yield self.backend.release_lock('test1', 'host%s' % l)
 
     @defer.inlineCallbacks
     def test_release_lock(self):

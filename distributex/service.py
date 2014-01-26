@@ -42,9 +42,10 @@ class SiteRoot(resource.Resource):
             self.pools[pool['name']] = servers
 
             expire = pool.get('expire', 1800)
+            maxlocks = pool.get('maxlocks', 1)
 
             yield defer.maybeDeferred(
-                self.backend.add_pool, pool['name'], expire
+                self.backend.add_pool, pool['name'], expire, maxlocks=maxlocks
             )
         
         self.ready = True

@@ -41,8 +41,11 @@ class MemcacheClientMixin(object):
         """
         Disconnect memcache
         """
-        self.memcached_factory.stopTrying()
-        return self.memcache.transport.loseConnection()
+        def dc(_):
+            self.memcached_factory.stopTrying()
+            return self.memcache.transport.loseConnection()
+
+        return self.wait_for_connection().addCallback(dc)
 
     def wait_for_connection(self):
         """
@@ -85,28 +88,49 @@ class MemcacheClientMixin(object):
 
 class MemcachedBackend(MemcacheClientMixin):
     interface.implements(backend.ICacheBackend)
+    pools = {}
    
     @defer.inlineCallbacks
     def get_lock(self, pool, host):
         _, lock_s = yield self.get_key(pool, 'lockedby')
         if lock_s:
-            if lock_s == host:
+            lockby = lock_s.split(',')
+            if host in lockby:
+                defer.returnValue(True)
+
+            maxlock = self.pools[pool]['maxlocks']
+            if len(lockby) < maxlock:
+                # Free slots
+                lockby.append(host)
+                expire = self.pools[pool]['expire']
+                yield self.set_key(
+                    pool, 'lockedby', ','.join(lockby), expire=expire
+                )
                 defer.returnValue(True)
             else:
                 defer.returnValue(False)
         else:
-            _, expire = yield self.get_key(pool, 'expire')
-            yield self.set_key(pool, 'lockedby', host, expire=int(expire))
+            expire = self.pools[pool]['expire']
+            yield self.set_key(pool, 'lockedby', host, expire=expire)
             defer.returnValue(True)
 
     @defer.inlineCallbacks
     def release_lock(self, pool, host):
         _, lock_s = yield self.get_key(pool, 'lockedby')
-        if lock_s == host:
-            yield self.delete_key(pool, 'lockedby')
+        if lock_s:
+            lockby = lock_s.split(',')
+            if host in lockby:
+                lockby.remove(host)
+                expire = self.pools[pool]['expire']
+                yield self.set_key(
+                    pool, 'lockedby', ','.join(lockby), expire=expire
+                )
 
         defer.returnValue(None)
    
-    def add_pool(self, pool, expire):
-        return self.set_key(pool, 'expire', expire)
+    def add_pool(self, pool, expire, maxlocks=1):
+        self.pools[pool] = {
+            'expire': expire,
+            'maxlocks': maxlocks
+        }
 

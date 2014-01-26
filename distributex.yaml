@@ -6,3 +6,6 @@ pools:
 
     - name: test2
       expire: 3600
+
+    - name: test3
+      maxlocks: 5
