@@ -1,9 +1,6 @@
 # Distributex
 
-|distributex-ci|_
-
-.. |distributex-ci| image:: https://travis-ci.org/calston/distributex.png?branch=master
-.. _distributex-ci: https://travis-ci.org/calston/distributex
+[![Build Status](https://travis-ci.org/calston/distributex.png?branch=master)](https://travis-ci.org/calston/distributex)
 
 Distributex is a simple mutex service for coordinating certain cluster
 operations.
