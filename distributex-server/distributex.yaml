@@ -1,3 +1,5 @@
+backend: memcache
+memcachehost: localhost
 pools:
     - name: test1
       expire: 3600

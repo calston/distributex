@@ -8,72 +8,31 @@ import time
 import cgi
 import random
 
-
-# Because it might be useful to support something sane like memcache, redis
-# or rabbitmq in future...
-class ICacheBackend(interface.Interface):
-    def get_lock(self, pool, host):
-        """
-        Try to get a lock on a specific pool
-        """
-
-    def release_lock(self, pool, host):
-        """
-        Release the lock on a pool
-        """
-
-    def add_pool(self, pool, expire, hosts):
-        """
-        Create and configure a lock pool
-        """
-
-class InMemoryDictBackend(object):
-    interface.implements(ICacheBackend)
-    
-    def __init__(self):
-        self.resources = {}
-
-    def get_lock(self, pool, host):
-        if self.resources[pool]['lockedby']:
-            if self.resources[pool]['lockedby'] == host:
-                # You already own this lock.
-                return True
-            
-            if self.resources[pool]['expire']:
-                locked_for = time.time() - self.resources[pool]['locktime']
-                if locked_for < self.resources[pool]['expire']:
-                    # Lock still valid
-                    return False
-            else:
-                return False
-
-        self.resources[pool]['lockedby'] = host
-        self.resources[pool]['locktime'] = time.time()
-        return True
-
-    def release_lock(self, pool, host):
-        if self.resources[pool]['lockedby'] == host:
-            self.resources[pool]['lockedby'] = None
-        
-    def add_pool(self, pool, expire, hosts):
-        self.resources[pool] = {
-            'hosts': hosts, 
-            'expire': expire,
-            'lockedby': None,
-            'locktime': 0
-        }
+from distributex.backends import in_memory_backend, memcached_backend
 
 class SiteRoot(resource.Resource):
     isLeaf = True
     addSlash = True
 
     def __init__(self, config):
+        self.backends = {
+            'memcache': memcached_backend.MemcachedBackend,
+            'inmemory': in_memory_backend.InMemoryDictBackend
+        }
         self.config = yaml.load(open(config))
+        self.ready = False
+        reactor.callWhenRunning(self.setup)
 
-        self.backend = InMemoryDictBackend()
+    @defer.inlineCallbacks
+    def setup(self):
+        # Initialise the configured backend
+        self.backend = self.backends[
+            self.config.get('backend', 'inmemory')
+        ](self.config)
 
         self.pools = {}
 
+        # Construct our pools 
         for pool in self.config.get('pools', []):
             if 'servers' in pool:
                 servers = pool['servers'].replace(' ', '').split(',')
@@ -82,28 +41,36 @@ class SiteRoot(resource.Resource):
 
             self.pools[pool['name']] = servers
 
-            self.backend.add_pool(
-                pool['name'], 
-                pool.get('expire', 1800),
-                servers
+            expire = pool.get('expire', 1800)
+
+            yield defer.maybeDeferred(
+                self.backend.add_pool, pool['name'], expire
             )
         
-        print self.backend.resources
+        self.ready = True
+        defer.returnValue(None)
+
+    def request_finish(self, request, result):
+        request.write(result)
+        request.finish()
 
     def wait_finish(self, lock, request, timer):
         if timer.running:
             timer.stop()
-        request.write('YES')
-        request.finish()
+
+        self.request_finish(request, 'YES')
 
     def wait_bailout(self, error, request, timer):
         if timer.running:
             timer.stop()
-        request.write('NO')
-        request.finish()
 
+        self.request_finish(request, 'NO')
+
+    @defer.inlineCallbacks
     def wait_lock(self, d, pool, host):
-        lock = self.backend.get_lock(pool, host)
+        lock = yield defer.maybeDeferred(
+            self.backend.get_lock, pool, host
+        )
         
         if lock:
             d.callback(True)
@@ -119,42 +86,59 @@ class SiteRoot(resource.Resource):
         timer.start(1 + random.random(), True)
 
         return d
+    
+    def request_release(self, request, pool, host):
+        d = defer.maybeDeferred(
+            self.backend.release_lock, pool, host
+        ).addCallback(lambda _: self.request_finish(request, 'OK'))
+
+    def request_getlock(self, request, pool, host):
+        d = defer.maybeDeferred(
+            self.backend.get_lock, pool, host
+        ).addCallback(
+            lambda l: self.request_finish(request, l and 'YES' or 'NO')
+        )
+
+    def handle_request(self, request):
+        if not self.ready:
+            reactor.callLater(0, self.handle_request, request)
+
+        else:
+            call = request.path.replace('/', '')
+
+            if not (('host' in request.args) and ('pool' in request.args)):
+                self.request_finish(request, 'INVALID')
+                return
+
+            host = cgi.escape(request.args["host"][0])
+            pool = cgi.escape(request.args["pool"][0])
+
+            if pool in self.pools:
+                if self.pools[pool]:
+                    # Server not allowed
+                    if not(host in self.pools[pool]):
+                        self.request_finish(request, 'INVALID')
+                        return
+            else:
+                self.request_finish(request, 'INVALID')
+                return
+
+            if call == 'wait':
+                # Wait for a lock
+                reactor.callLater(random.random()/5, self.request_wait, 
+                    request, pool, host)
+
+            elif call == 'release':
+                # Release a lock
+                self.request_release(request, pool, host)
+
+            elif call == 'get':
+                # Get a lock, don't wait for it
+                self.request_getlock(request, pool, host)
+
+            else:
+                self.request_finish(request, 'INVALID')
 
     def render_GET(self, request):
-        call = request.path.replace('/', '')
-
-        if not (('host' in request.args) and ('pool' in request.args)):
-            return "INVALID"
-
-        host = cgi.escape(request.args["host"][0])
-        pool = cgi.escape(request.args["pool"][0])
-
-        if pool in self.pools:
-            if self.pools[pool]:
-                # Server not allowed
-                if not(host in self.pools[pool]):
-                    return "NOT ALLOWED"
-        else:
-            return "INVALID"
-
-        if call == 'wait':
-            # Wait for a lock
-            reactor.callLater(random.random()/5, self.request_wait, 
-                request, pool, host)
-
-            return server.NOT_DONE_YET
-
-        elif call == 'release':
-            # Release a lock
-            self.backend.release_lock(pool, host)
-            return "OK"
-
-        elif call == 'get':
-            # Get a lock, don't wait for it
-            if self.backend.get_lock(pool, host):
-                return "YES"
-            else:
-                return "NO"
-
-        else:
-            return "INVALID"
+        self.handle_request(request)
+        return server.NOT_DONE_YET
