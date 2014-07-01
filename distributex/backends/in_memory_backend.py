@@ -17,13 +17,13 @@ class InMemoryDictBackend(object):
 
     def get_lock(self, pool, host):
         lockby = self.resources[pool]['lockedby']
-        maxlocks = self.resources[pool]['maxlocks']
+        maxlocks = self.resources[pool]['maxlocks'] or 0
 
         if self.resources[pool]['expire']:
             # Expire any stale lock
             locked_for = time.time() - self.resources[pool]['locktime']
             if locked_for > self.resources[pool]['expire']:
-                if len(lockby) >= maxlocks:
+                if lockby and (len(lockby) >= maxlocks):
                     # Remove the oldest lock
                     dropped = self.resources[pool]['lockedby'].pop(0)
                     lockby = self.resources[pool]['lockedby']
