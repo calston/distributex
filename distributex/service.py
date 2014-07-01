@@ -74,8 +74,6 @@ class SiteRoot(resource.Resource):
             self.backend.get_lock, pool, host
         )
 
-        print self.backend.resources
-        
         if lock:
             d.callback(True)
 
