@@ -47,7 +47,11 @@ class InMemoryDictBackend(object):
         if self.resources[pool]['lockprio']:
             if not self.get_priority(pool, host):
                 # Pass over this lock request, reduce age
-                self.resources[pool]['lockprio'][host] -= 2
+                if host in self.resources[pool]['lockprio']:
+                    self.resources[pool]['lockprio'][host] -= 2
+                else:
+                    self.resources[pool]['lockprio'][host] = time.time()
+                    
                 return False
             
             if host in self.resources[pool]['lockprio']:
