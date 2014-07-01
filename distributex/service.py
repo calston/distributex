@@ -55,15 +55,16 @@ class SiteRoot(resource.Resource):
         request.write(result)
         request.finish()
 
-    def wait_finish(self, lock, request, timer):
+    def stop_timer(self, timer):
         if timer.running:
             timer.stop()
 
+    def wait_finish(self, lock, request, timer):
+        self.stop_timer(timer)
         self.request_finish(request, 'YES')
 
     def wait_bailout(self, error, request, timer):
-        if timer.running:
-            timer.stop()
+        self.stop_timer(timer)
 
         self.request_finish(request, 'NO')
 
@@ -72,6 +73,8 @@ class SiteRoot(resource.Resource):
         lock = yield defer.maybeDeferred(
             self.backend.get_lock, pool, host
         )
+
+        print self.backend.resources
         
         if lock:
             d.callback(True)
@@ -83,6 +86,10 @@ class SiteRoot(resource.Resource):
 
         d.addCallback(self.wait_finish, request, timer)
         d.addErrback(self.wait_bailout, request, timer)
+
+        request.notifyFinish().addErrback(
+            lambda _: self.stop_timer(timer)
+        )
 
         timer.start(1 + random.random(), True)
 

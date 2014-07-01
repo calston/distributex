@@ -56,7 +56,7 @@ class DictBackend(unittest.TestCase):
         self.assertTrue(lock)
 
         for l in range(5):
-            yield self.backend.release_lock('test1', 'host%s' % l)
+            self.backend.release_lock('test1', 'host%s' % l)
 
 
 class MemcachedBackend(unittest.TestCase):
