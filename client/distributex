@@ -12,31 +12,42 @@ def parseArgs():
     parser.add_argument('command', type=str, nargs='?',
                        help='Command to execute when lock is obtained')
 
-    parser.add_argument('-H', dest='host', required=True, help='Server hostname')
+    parser.add_argument('-H', dest='host', required=False, help='Server hostname')
     parser.add_argument('-r', dest='pool', required=True, help='Resource pool')
     parser.add_argument('-p', dest='port', default=9889, type=int,
         help='Server port (default 9889)')
-    parser.add_argument('-l', dest='lock', default=False, action="store_true", help='Use local locking as well')
+    parser.add_argument('-l', dest='lock', default=False, action="store_true", help='Don\'t use local locking')
 
     return parser.parse_args()
 
 if __name__ == "__main__": 
     args = parseArgs()
 
+    if args.lock and not args.host:
+        print "You must specify a server hostname or use local locking"
+        sys.exit(1)
+
+    if not args.command:
+        print "You must specify a command to run"
+        sys.exit(1)
+
     host = socket.gethostbyaddr(socket.gethostname())[0]
 
     lockfile = '/tmp/dx-%s.lock' % args.pool
 
-    # Build a reusable URI for the server
-    server_uri = "http://%s:%s/%%s/?pool=%s&host=%s" % (
-            args.host,
-            args.port,
-            args.pool,
-            host
-        )
+    if args.host:
+        # Build a reusable URI for the server
+        server_uri = "http://%s:%s/%%s/?pool=%s&host=%s" % (
+                args.host,
+                args.port,
+                args.pool,
+                host
+            )
+    else:
+        server_uri = None
 
     def cleanup():
-        if args.lock:
+        if not args.lock:
             try:
                 os.unlink(lockfile)
             except:
@@ -44,14 +55,15 @@ if __name__ == "__main__":
 
     def exitClean(signal, frame):
         cleanup()
-        urllib2.urlopen(server_uri % 'release').read()
+        if server_uri:
+            urllib2.urlopen(server_uri % 'release').read()
         sys.exit(1)
 
     signal.signal(signal.SIGINT, exitClean)
     signal.signal(signal.SIGTERM, exitClean)
 
     # Look for a local lock
-    if args.lock:
+    if not args.lock:
         if os.path.exists(lockfile):
             try:
                 pid = int(open(lockfile).read())
@@ -74,24 +86,28 @@ if __name__ == "__main__":
         f.close()
 
     try:
-        lock = urllib2.urlopen(server_uri % 'wait').read()
-        
-        if lock == "YES":
-            os.system(args.command)
+        if server_uri:
+            lock = urllib2.urlopen(server_uri % 'wait').read()
             
-            cleanup()
-            urllib2.urlopen(server_uri % 'release').read()
+            if lock == "YES":
+                os.system(args.command)
+                
+                cleanup()
+                urllib2.urlopen(server_uri % 'release').read()
+            else:
+                print "Error obtaining lock, server said", lock
+                cleanup()
+                sys.exit(1)
         else:
-            print "Error obtaining lock, server said", lock
             cleanup()
-            sys.exit(1)
 
     except (KeyboardInterrupt, SystemExit):
         print "Exiting"
 
         cleanup()
-        urllib2.urlopen(server_uri % 'release').read()
+        if server_uri:
+            urllib2.urlopen(server_uri % 'release').read()
     except:
         cleanup()
-        urllib2.urlopen(server_uri % 'release').read()
-        rollback()
+        if server_uri:
+            urllib2.urlopen(server_uri % 'release').read()
